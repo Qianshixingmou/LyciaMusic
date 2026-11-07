@@ -83,3 +83,20 @@ textarea,
   -webkit-user-select: text;
   user-select: text;
 }
+
+/*
+ * WebKitGTK（Linux 上的 Tauri WebView）对 backdrop-filter 的实现有缺陷：
+ * 模糊层是矩形，无法被父元素的圆角裁剪，窗口缩放时会溢出并与侧边栏重叠；
+ * 另外大量使用还会导致合成内存暴涨。Linux 构建统一关闭毛玻璃。
+ */
+.backdrop-blur-xs,
+.backdrop-blur-sm,
+.backdrop-blur,
+.backdrop-blur-md,
+.backdrop-blur-lg,
+.backdrop-blur-xl,
+.backdrop-blur-2xl,
+.backdrop-blur-3xl {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
