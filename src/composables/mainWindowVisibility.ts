@@ -18,7 +18,11 @@ export async function toggleMainWindowVisibility(
   ]);
 
   if (visible && !minimized) {
-    await mainWindow.minimize();
+    if (/Linux/i.test(navigator.userAgent)) {
+      await (mainWindow as unknown as { hide: () => Promise<void> }).hide();
+    } else {
+      await mainWindow.minimize();
+    }
     setMainWindowRenderingSnapshot({
       windowFocused: false,
       windowVisible: true,

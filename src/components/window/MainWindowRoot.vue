@@ -6,6 +6,7 @@ import { onMounted, onUnmounted } from 'vue';
 import { useImportedLyricsFonts } from '../../composables/useImportedLyricsFonts';
 import { useSettings } from '../../features/settings/useSettings';
 import MainShell from '../layout/MainShell.vue';
+import WindowResizeHandles from './WindowResizeHandles.vue';
 import StartupUpdateNotice from '../overlays/StartupUpdateNotice.vue';
 
 const appWindow = getCurrentWindow();
@@ -31,5 +32,6 @@ onUnmounted(() => {
 
 <template>
   <MainShell />
+  <WindowResizeHandles />
   <StartupUpdateNotice />
 </template>

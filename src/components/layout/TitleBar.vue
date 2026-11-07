@@ -66,7 +66,14 @@ const toggleTaskbarPlayer = () => {
 };
 
 // 最小化
+// Linux/Wayland：窗口一旦被合成器 minimize，应用自己无法再 deiconify
+// （KWin 会以缺少 activation token 为由拒绝恢复）。改为 hide，托盘可稳定恢复。
+const isWaylandLinux = /Linux/i.test(navigator.userAgent);
 const minimize = async () => {
+  if (isWaylandLinux) {
+    await appWindow.hide();
+    return;
+  }
   await appWindow.minimize();
 };
 

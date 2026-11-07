@@ -19,7 +19,7 @@ import { isProfilingEnabled } from '../utils/profiling';
 import { getCachedLibrarySongTitleLabel } from './useLibraryAllSongPathCache';
 
 const ROW_HEIGHT = 72;
-const INDEX_PROXIMITY_PX = 72;
+const INDEX_PROXIMITY_PX = 40;
 const INDEX_AUTO_HIDE_MS = 500;
 const SCROLL_TO_TOP_VIEW_MODES = new Set(['all', 'playlist', 'artist', 'album']);
 

@@ -101,9 +101,15 @@ pub(crate) fn reveal_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     }
 
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        // Wayland/KWin：窗口被合成器最小化后，应用无法自行 deiconify
+        // （没有 activation token 时 KWin 会拒绝把窗口恢复到前台）。
+        // hide() + show() 会让 KWin 重新映射一个 surface，绕过 minimized 状态。
         let _ = window.unminimize();
+        let _ = window.hide();
+        std::thread::sleep(std::time::Duration::from_millis(60));
         let _ = window.show();
         let _ = window.set_focus();
+        eprintln!("[tray] reveal via hide/show done");
     }
 }
 

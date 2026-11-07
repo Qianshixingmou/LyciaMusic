@@ -3,7 +3,7 @@
 //! 菜单项与 Windows 版的自绘托盘菜单（src/components/layout/TrayMenuWindow.vue）
 //! 保持一致：通过 `app:tray-menu` 事件把动作发给主窗口处理。
 
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 const TRAY_MENU_EVENT: &str = "app:tray-menu";
 
@@ -30,6 +30,22 @@ fn icon_argb() -> Vec<ksni::Icon> {
     }]
 }
 
+
+fn reveal_on_main_thread(app: &AppHandle<tauri::Wry>) {
+    eprintln!("[tray] reveal requested");
+    let app = app.clone();
+    // GTK 的窗口操作必须在主线程执行，ksni 回调在独立线程里，直接调用会静默失败
+    let r = app.clone().run_on_main_thread(move || {
+        eprintln!("[tray] on main thread, revealing");
+        crate::app_runtime::reveal_main_window(&app);
+        if let Some(w) = app.get_webview_window("main") {
+            eprintln!("[tray] after reveal: visible={:?} minimized={:?}",
+                w.is_visible(), w.is_minimized());
+        }
+    });
+    eprintln!("[tray] run_on_main_thread -> {:?}", r);
+}
+
 impl LyciaTray {
     fn dispatch(&self, action: &str) {
         let _ = self.app.emit_to("main", TRAY_MENU_EVENT, action.to_string());
@@ -50,7 +66,7 @@ impl ksni::Tray for LyciaTray {
     }
 
     fn activate(&mut self, _x: i32, _y: i32) {
-        crate::app_runtime::reveal_main_window(&self.app);
+        reveal_on_main_thread(&self.app);
     }
 
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
@@ -66,7 +82,7 @@ impl ksni::Tray for LyciaTray {
         let reveal = StandardItem {
             label: "显示主窗口".into(),
             activate: Box::new(|tray: &mut Self| {
-                crate::app_runtime::reveal_main_window(&tray.app);
+                reveal_on_main_thread(&tray.app);
             }),
             ..Default::default()
         };
@@ -99,7 +115,15 @@ impl ksni::Tray for LyciaTray {
             MenuItem::Separator,
             item("mini 窗口", "toggle-mini-player"),
             item("桌面歌词", "toggle-desktop-lyrics"),
-            item("设置…", "open-settings"),
+            StandardItem {
+                label: "设置…".into(),
+                activate: Box::new(|tray: &mut Self| {
+                    tray.dispatch("open-settings");
+                    reveal_on_main_thread(&tray.app);
+                }),
+                ..Default::default()
+            }
+            .into(),
             MenuItem::Separator,
             quit.into(),
         ]
