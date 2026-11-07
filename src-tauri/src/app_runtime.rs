@@ -89,7 +89,7 @@ fn queue_open_paths<R: tauri::Runtime>(app: &tauri::AppHandle<R>, paths: Vec<Str
     }
 }
 
-fn reveal_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+pub(crate) fn reveal_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     let mini_player_visible = app
         .get_webview_window(MINI_PLAYER_WINDOW_LABEL)
         .and_then(|window| window.is_visible().ok())
@@ -200,6 +200,11 @@ pub(crate) fn setup_app(
     queue_open_paths(app.handle(), initial_open_paths);
 
     install_window_boundary(app);
+    #[cfg(target_os = "linux")]
+    {
+        crate::tray::spawn(app.handle().clone());
+    }
+    #[cfg(not(target_os = "linux"))]
     if let Err(error) = build_tray(app) {
         eprintln!("Warning: failed to build tray icon: {:?}", error);
     }

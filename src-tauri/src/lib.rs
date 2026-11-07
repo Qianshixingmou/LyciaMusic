@@ -6,6 +6,8 @@ pub mod error;
 mod foreground_window;
 mod highlights;
 mod music;
+#[cfg(target_os = "linux")]
+mod tray;
 mod player;
 mod remote;
 mod statistics;
