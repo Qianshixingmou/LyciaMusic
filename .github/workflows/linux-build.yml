@@ -1,5 +1,8 @@
 name: Build Linux bundles
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [linux, linux-support]
