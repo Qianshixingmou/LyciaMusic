@@ -112,6 +112,10 @@ pub async fn play_audio(
         .cue_start_offset_ms
         .store(cue_offset_ms, Ordering::Relaxed);
     let tx = state.tx.lock().map_err(|e| e.to_string())?;
+    // Keep the initial SMTC update ordered before the worker's error update.
+    // A decoder can fail as soon as Play is sent; it must not have its Stopped
+    // state overwritten by the Playing initialization below.
+    let mut controls_guard = state.controls.lock().ok();
     tx.send(AudioCommand::Play {
         source,
         output_mode: selected_output_mode,
@@ -123,7 +127,7 @@ pub async fn play_audio(
     })
     .map_err(|e| e.to_string())?;
 
-    if let Ok(mut controls) = state.controls.lock() {
+    if let Some(controls) = controls_guard.as_mut() {
         if let Some(mc) = controls.as_mut() {
             let _ = mc.set_metadata(MediaMetadata {
                 title: Some(&title),
@@ -330,9 +334,15 @@ pub fn seek_audio(
     request_id: u64,
     state: tauri::State<PlayerState>,
 ) -> Result<(), String> {
+    let sanitized_time = if time.is_finite() && time >= 0.0 {
+        time
+    } else {
+        0.0
+    };
+
     let tx = state.tx.lock().map_err(|e| e.to_string())?;
     tx.send(AudioCommand::Seek {
-        time,
+        time: sanitized_time,
         is_playing,
         request_id,
     })
@@ -341,7 +351,7 @@ pub fn seek_audio(
     if let Ok(mut controls) = state.controls.lock() {
         if let Some(mc) = controls.as_mut() {
             let progress = MediaPosition(Duration::from_secs_f64(
-                state.progress.media_seconds_from_absolute(time),
+                state.progress.media_seconds_from_absolute(sanitized_time),
             ));
             if is_playing {
                 let _ = mc.set_playback(MediaPlayback::Playing {

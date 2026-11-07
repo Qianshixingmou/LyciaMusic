@@ -18,7 +18,9 @@ mod window_material;
 mod window_theme;
 mod window_z_order;
 
-use app_runtime::{consume_pending_open_paths, exit_app, handle_single_instance, setup_app};
+use app_runtime::{
+    consume_pending_open_paths, exit_app, handle_single_instance, setup_app, update_tray_tooltip,
+};
 use custom_background::prepare_custom_background_image;
 use custom_fonts::{import_lyrics_font, read_lyrics_font_data_url};
 use database::clear_all_app_data;
@@ -71,7 +73,7 @@ use taskbar::{
 use tauri::Manager;
 use toolbox::{
     apply_rename, check_update_by_rust, download_update_file, file_exists, open_external_program,
-    preview_rename, refresh_folder_songs, run_installer, set_gpu_acceleration,
+    preview_toolbox, refresh_folder_songs, run_installer, set_gpu_acceleration,
 };
 
 #[cfg(target_os = "windows")]
@@ -155,7 +157,7 @@ pub fn run() {
             get_track_loudness_info,
             update_loudness_settings,
             set_equalizer_settings,
-            preview_rename,
+            preview_toolbox,
             apply_rename,
             get_output_devices,
             get_current_output_device,
@@ -247,6 +249,7 @@ pub fn run() {
             refresh_taskbar_window_topmost,
             uninstall_taskbar_zorder_guard,
             exit_app,
+            update_tray_tooltip,
             set_gpu_acceleration,
             check_update_by_rust,
             download_update_file,

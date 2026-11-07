@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Moon, Sun } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { usePlayerViewState } from '../../composables/usePlayerViewState';
 import { useThemeSettings } from '../../composables/useThemeSettings';
@@ -11,7 +11,7 @@ import { useLibrarySearchIndex } from '../../composables/useLibrarySearchIndex';
 
 const router = useRouter();
 const route = useRoute();
-const { searchQuery, setSearch, isMiniMode } = usePlayerViewState();
+const { searchQuery, setSearch, isMiniMode, currentViewMode } = usePlayerViewState();
 const appWindow = getCurrentWindow();
 const TITLE_BAR_CONTROL_SELECTOR = 'button, a, input, select, textarea, [role="button"]';
 const { settings } = useSettings();
@@ -20,9 +20,21 @@ const { searchIndexBuilding, searchIndexProgress } = useLibrarySearchIndex();
 const rotation = ref(0); // For settings icon animation
 const lastNonSettingsRoute = ref(route.path === '/settings' ? '/' : route.fullPath);
 const isSettingsRoute = computed(() => route.path === '/settings');
+const isPlaylistLibraryRoute = computed(() => route.path === '/playlists');
 const themeToggleTitle = computed(() => (isDarkTheme.value ? '切换浅色' : '切换深色'));
 const searchDraft = ref(searchQuery.value);
 const isSearchDraftDirty = computed(() => searchDraft.value !== searchQuery.value);
+
+// 搜索框提示文字随页面切换：歌曲/艺术家/专辑三种搜索模式
+const searchPlaceholder = computed(() => {
+  if (route.path === '/artists') {
+    return '搜索艺术家...';
+  }
+  if (route.path === '/albums') {
+    return '搜索专辑...';
+  }
+  return '搜索歌曲...';
+});
 
 const rotateSettings = () => {
   rotation.value += 180;
@@ -100,20 +112,48 @@ const closeWindow = async () => {
   }
 };
 
+// 输入停顿后自动提交搜索，无需回车；回车/搜索按钮/清空仍立即生效
+const SEARCH_COMMIT_DELAY_MS = 250;
+let searchCommitTimer: ReturnType<typeof window.setTimeout> | null = null;
+
+const cancelPendingSearchCommit = () => {
+  if (searchCommitTimer !== null) {
+    window.clearTimeout(searchCommitTimer);
+    searchCommitTimer = null;
+  }
+};
+
 const commitSearch = (value: string) => {
+  cancelPendingSearchCommit();
   searchDraft.value = value;
   setSearch(value);
 };
 
 const handleInput = (event: Event) => {
-  searchDraft.value = (event.target as HTMLInputElement).value;
+  const value = (event.target as HTMLInputElement).value;
+  searchDraft.value = value;
+  cancelPendingSearchCommit();
+  searchCommitTimer = window.setTimeout(() => {
+    searchCommitTimer = null;
+    setSearch(searchDraft.value);
+  }, SEARCH_COMMIT_DELAY_MS);
 };
+
+// 切换页面或首页子视图（本地音乐/文件夹/统计等）时清空搜索词，避免过滤条件残留
+watch(
+  [() => route.path, currentViewMode],
+  () => {
+    commitSearch('');
+  },
+);
 
 watch(searchQuery, (value) => {
   if (value !== searchDraft.value) {
     searchDraft.value = value;
   }
 });
+
+onBeforeUnmount(cancelPendingSearchCommit);
 
 const goBack = () => { router.back(); };
 </script>
@@ -136,7 +176,7 @@ const goBack = () => { router.back(); };
         </svg>
       </button>
 
-      <div class="group relative bg-white/5 dark:bg-white/5 hover:bg-white/10 dark:hover:bg-white/10 focus-within:bg-white/20 dark:focus-within:bg-white/10 focus-within:ring-2 focus-within:ring-[#EC4141]/20 pl-2 pr-3 py-1.5 rounded-full text-sm flex items-center transition-all w-60 ml-2 border border-black/10 dark:border-white/20">
+      <div v-if="!isPlaylistLibraryRoute" class="group relative bg-white/5 dark:bg-white/5 hover:bg-white/10 dark:hover:bg-white/10 focus-within:bg-white/20 dark:focus-within:bg-white/10 focus-within:ring-2 focus-within:ring-[#EC4141]/20 pl-2 pr-3 py-1.5 rounded-full text-sm flex items-center transition-all w-60 ml-2 border border-black/10 dark:border-white/20">
         <button
           type="button"
           class="p-1 mr-1 rounded-full text-gray-900 dark:text-gray-100 group-focus-within:text-[#EC4141] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
@@ -151,7 +191,7 @@ const goBack = () => { router.back(); };
         </button>
         <input 
           type="text" 
-          placeholder="搜索音乐..." 
+          :placeholder="searchPlaceholder" 
           class="bg-transparent outline-none w-full placeholder-gray-700 dark:placeholder-gray-300 text-gray-800 dark:text-gray-100 text-xs font-medium"
           :value="searchDraft"
           @input="handleInput"

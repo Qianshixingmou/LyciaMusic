@@ -1,5 +1,11 @@
+<script lang="ts">
+// MainShell 按路由折叠侧边栏时以此为 max-width 上界，保证展开状态下不裁剪内容
+export const SIDEBAR_MAX_WIDTH = 360;
+</script>
+
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 
 import ModernInputModal from '../common/ModernInputModal.vue';
@@ -8,6 +14,7 @@ import PlaylistContextMenu from '../overlays/PlaylistContextMenu.vue';
 import { useCoverCache } from '../../composables/useCoverCache';
 import { useHomeNavigation } from '../../composables/useHomeNavigation';
 import { useLibraryCollections } from '../../features/collections/useLibraryCollections';
+import { usePlaylistLibraryStore } from '../../features/collections/playlistLibrary';
 import { usePlaybackController } from '../../features/playback/usePlaybackController';
 import { usePlayerLibraryView } from '../../features/library/usePlayerLibraryView';
 import { dragSession } from '../../composables/dragState';
@@ -20,6 +27,7 @@ import { useSidebarPlaylistSelection } from '../../composables/useSidebarPlaylis
 import SidebarBrand from './SidebarBrand.vue';
 import SidebarNavigation from './SidebarNavigation.vue';
 import SidebarPlaylists from './SidebarPlaylists.vue';
+import type { Playlist } from '../../types';
 
 const { artistList, albumList } = usePlayerLibraryView();
 const { playSong, addSongsToQueue, clearQueue } = usePlaybackController();
@@ -38,6 +46,7 @@ const {
   reorderPlaylists,
   getSongsFromPlaylist,
 } = useLibraryCollections();
+const { shortcutPlaylists, pinnedIds } = storeToRefs(usePlaylistLibraryStore());
 
 const route = useRoute();
 const router = useRouter();
@@ -48,6 +57,7 @@ const {
   openHomeStatistics,
   openArtists,
   openAlbums,
+  openPlaylists,
   openFavorites,
   openRecent,
 } = useHomeNavigation(router);
@@ -55,9 +65,16 @@ const { preloadCovers, loadCover } = useCoverCache();
 
 const isPlaylistOpen = ref(true);
 const showCreateModal = ref(false);
+const activePlaylistId = computed(() =>
+  route.path === '/' && route.query.view === 'playlist' && typeof route.query.filter === 'string'
+    ? route.query.filter
+    : undefined,
+);
+const visibleShortcutPlaylists = computed(() =>
+  settings.value.sidebar.showPlaylists && isPlaylistOpen.value ? shortcutPlaylists.value : [],
+);
 
 const SIDEBAR_MIN_WIDTH = 192;
-const SIDEBAR_MAX_WIDTH = 360;
 const SIDEBAR_KEYBOARD_STEP = 16;
 const sidebarWidth = ref(SIDEBAR_MIN_WIDTH);
 const isResizing = ref(false);
@@ -130,7 +147,7 @@ const {
   handlePlaylistClick,
   handleBackgroundClick,
 } = useSidebarPlaylistSelection({
-  playlists,
+  playlists: shortcutPlaylists,
   currentViewMode,
   filterCondition,
   openHomePlaylist,
@@ -139,6 +156,15 @@ const {
 const clearPlaylistSelection = () => {
   selectedPlaylistIds.value.clear();
 };
+
+watch(activePlaylistId, (id) => {
+  if (!id) {
+    clearPlaylistSelection();
+  } else if (!selectedPlaylistIds.value.has(id)) {
+    clearPlaylistSelection();
+    selectedPlaylistIds.value.add(id);
+  }
+}, { immediate: true });
 
 const {
   showContextMenu,
@@ -176,8 +202,16 @@ const {
   reorderPlaylists,
 });
 
+const handleShortcutPointerDown = (event: PointerEvent, _index: number, playlist: Playlist) => {
+  // 快捷列表按置顶重排并截取，拖拽必须使用完整歌单列表中的索引。
+  const sourceIndex = playlists.value.findIndex(item => item.id === playlist.id);
+  if (sourceIndex !== -1) {
+    handlePointerDown(event, sourceIndex, playlist);
+  }
+};
+
 const { playlistCoverCacheVersion, getPlaylistCover } = useSidebarPlaylistCovers({
-  playlists,
+  playlists: visibleShortcutPlaylists,
   loadCover,
 });
 
@@ -201,6 +235,10 @@ const handleOpenArtistsView = () => {
 
 const handleOpenAlbumsView = () => {
   void openAlbums();
+};
+
+const handleOpenPlaylistsView = () => {
+  void openPlaylists();
 };
 
 const handleOpenFavoritesView = () => {
@@ -251,6 +289,7 @@ const handleOpenStatisticsView = () => {
         @openAll="handleOpenAllView"
         @openArtists="handleOpenArtistsView"
         @openAlbums="handleOpenAlbumsView"
+        @openPlaylists="handleOpenPlaylistsView"
         @openFavorites="handleOpenFavoritesView"
         @openRecent="handleOpenRecentView"
         @openFolder="handleOpenFolderView"
@@ -262,7 +301,10 @@ const handleOpenStatisticsView = () => {
       <SidebarPlaylists
         v-if="settings.sidebar.showPlaylists"
         v-model:isOpen="isPlaylistOpen"
-        :playlists="playlists"
+        :playlists="shortcutPlaylists"
+        :totalCount="playlists.length"
+        :pinnedIds="pinnedIds"
+        :activeId="activePlaylistId"
         :selectedPlaylistIds="selectedPlaylistIds"
         :playlistCoverCacheVersion="playlistCoverCacheVersion"
         :getPlaylistCover="getPlaylistCover"
@@ -270,7 +312,8 @@ const handleOpenStatisticsView = () => {
         :dragOverId="dragOverId"
         :dragPosition="dragPosition"
         @createPlaylist="handleCreatePlaylist"
-        @pointerDown="handlePointerDown"
+        @openAll="handleOpenPlaylistsView"
+        @pointerDown="handleShortcutPointerDown"
         @itemPointerMove="handleItemPointerMove"
         @playlistClick="handlePlaylistClick"
         @playlistContextMenu="handlePlaylistContextMenu"

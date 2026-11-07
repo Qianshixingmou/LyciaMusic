@@ -177,6 +177,7 @@ export interface Playlist {
 export interface LibraryFolder {
   path: string;
   song_count: number;
+  locked: boolean;
 }
 
 export type RemoteSourceProvider = 'webdav';
@@ -477,6 +478,7 @@ export interface AppSettings {
   gpuAcceleration: boolean;
   writeArtistAvatarToTags: boolean;
   autoScanLibraryOnStartup: boolean;
+  autoCheckUpdatesOnStartup: boolean;
 }
 
 export interface SaveArtistAvatarResponse {
