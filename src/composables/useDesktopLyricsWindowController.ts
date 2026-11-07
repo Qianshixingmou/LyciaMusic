@@ -253,9 +253,22 @@ export function useDesktopLyricsWindowController(options: {
   }
 
   async function applyTransientWindowFlags() {
+    // 修复：窗口尚未显示（GTK 窗口还未 realize）时调用 setIgnoreCursorEvents，
+    // tao 会在 window.window().unwrap() 处 panic 导致整个应用崩溃。
+    try {
+      if (!(await appWindow.isVisible())) {
+        return;
+      }
+    } catch {
+      return;
+    }
     const shouldIgnoreCursor = (settings.value.isLocked && !isCursorOverLockButton.value) || isAutoHidden.value;
-    await appWindow.setIgnoreCursorEvents(shouldIgnoreCursor);
-    await appWindow.setFocusable(!shouldIgnoreCursor);
+    try {
+      await appWindow.setIgnoreCursorEvents(shouldIgnoreCursor);
+      await appWindow.setFocusable(!shouldIgnoreCursor);
+    } catch (err) {
+      console.warn('Failed to apply desktop lyrics window flags:', err);
+    }
   }
 
   async function applyAlwaysOnTopState(enabled: boolean) {

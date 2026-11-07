@@ -151,7 +151,7 @@ const handleShortcutCapture = (scope: ShortcutScope, actionId: ShortcutActionId,
             @click="startCapture('local', row.actionId)"
             @blur="isCapturing('local', row.actionId) && stopCapture()"
             @keydown="handleShortcutCapture('local', row.actionId, $event)"
-            class="w-full rounded-full border px-4 py-3 text-left text-sm transition-all backdrop-blur-md"
+            class="w-full rounded-full border px-4 py-3 text-left text-sm transition-colors"
             :class="isCapturing('local', row.actionId)
               ? 'border-[#EC4141] bg-red-500/10 text-[#EC4141] dark:bg-red-500/20 shadow-[0_0_12px_rgba(236,65,65,0.2)]'
               : 'border-white/30 bg-white/40 text-gray-800 shadow-sm hover:border-[#EC4141] hover:text-[#EC4141] hover:bg-white/50 dark:border-white/10 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/20 dark:hover:border-[#EC4141]'"
@@ -165,7 +165,7 @@ const handleShortcutCapture = (scope: ShortcutScope, actionId: ShortcutActionId,
             @click="startCapture('global', row.actionId)"
             @blur="isCapturing('global', row.actionId) && stopCapture()"
             @keydown="handleShortcutCapture('global', row.actionId, $event)"
-            class="w-full rounded-full border px-4 py-3 text-left text-sm transition-all backdrop-blur-md"
+            class="w-full rounded-full border px-4 py-3 text-left text-sm transition-colors"
             :class="isCapturing('global', row.actionId)
               ? 'border-[#EC4141] bg-red-500/10 text-[#EC4141] dark:bg-red-500/20 shadow-[0_0_12px_rgba(236,65,65,0.2)]'
               : occupiedActionIdSet.has(row.actionId)
