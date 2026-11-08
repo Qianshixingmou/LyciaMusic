@@ -205,7 +205,7 @@ onMounted(() => {
                     <div
                       v-else
                       :key="'empty-' + blockTransitionKey"
-                      class="desktop-empty-state flex h-full items-center justify-center text-center"
+                      class="desktop-empty-state flex h-full items-center"
                       :class="{ 'desktop-empty-state--stroked': settings.textStrokeDepth > 0 }"
                     >
                       {{ fallbackStateText }}
@@ -609,6 +609,9 @@ onMounted(() => {
 }
 
 .desktop-empty-state {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
   color: var(--desktop-text-secondary);
   font-size: 1.1rem;
   font-weight: 600;
@@ -617,6 +620,16 @@ onMounted(() => {
     drop-shadow(0 1px 2px rgb(var(--desktop-text-shadow-color, 0 0 0) / calc(var(--desktop-first-line-text-shadow-alpha, 0) * 0.48)))
     drop-shadow(0 0 calc(var(--desktop-first-line-text-shadow-blur, 0px) * 0.82) rgb(var(--desktop-text-shadow-color, 0 0 0) / calc(var(--desktop-first-line-text-shadow-alpha, 0) * 0.82)))
     drop-shadow(0 0 16px color-mix(in srgb, var(--desktop-accent-a) 12%, transparent));
+}
+
+.lyrics-align-left .desktop-empty-state {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.lyrics-align-right .desktop-empty-state {
+  justify-content: flex-end;
+  text-align: right;
 }
 
 .desktop-empty-state--stroked {
