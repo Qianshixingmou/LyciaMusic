@@ -33,7 +33,17 @@ const handleOpenDetail = () => {
   togglePlayerDetail();
 };
 
-const { showDesktopLyrics, showLyricsPlayerSettingsPanel } = useLyrics();
+const { showDesktopLyrics, showLyricsPlayerSettingsPanel, desktopLyricsSettings } = useLyrics();
+
+// 桌面歌词锁定/解锁
+const toggleDesktopLyricsLock = () => {
+  const next = !desktopLyricsSettings.isLocked;
+  desktopLyricsSettings.isLocked = next;
+  // 锁定时如果歌词还没显示，顺手打开
+  if (next && !showDesktopLyrics.value) {
+    showDesktopLyrics.value = true;
+  }
+};
 
 // --- Context Menu State ---
 const showContextMenu = ref(false);
@@ -540,6 +550,18 @@ onUnmounted(() => {
       class="flex items-center justify-end w-1/3 min-w-[150px] gap-2 pr-2 transition-opacity duration-700"
       :class="{ 'opacity-0 pointer-events-none': isIdle }"
     > 
+      <!-- 桌面歌词锁定 / 解锁 -->
+      <button
+        @click="toggleDesktopLyricsLock"
+        :class="['transition-colors w-8 h-8 flex items-center justify-center rounded-full', desktopLyricsSettings.isLocked ? 'text-[#EC4141] bg-[#EC4141]/10' : (showPlayerDetail ? 'text-white/60 hover:text-white hover:bg-white/10' : 'text-gray-700 dark:text-white/80 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10')]"
+        :title="desktopLyricsSettings.isLocked ? '解锁桌面歌词' : '锁定桌面歌词'"
+      >
+        <!-- 锁定：闭合的锁 -->
+        <svg v-if="desktopLyricsSettings.isLocked" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        <!-- 解锁：开锁 -->
+        <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
+      </button>
+
       <div 
         class="relative flex items-center justify-center h-full z-[70]"
         @mouseenter="handleVolumeEnter"
