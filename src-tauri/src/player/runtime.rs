@@ -272,18 +272,61 @@ fn restore_shared_output(
     )
 }
 
+fn media_event_handler(app: AppHandle) -> impl Fn(MediaControlEvent) + Send + 'static {
+    move |event| match event {
+        MediaControlEvent::Play => {
+            let _ = app.emit("player:play", ());
+        }
+        MediaControlEvent::Pause => {
+            let _ = app.emit("player:pause", ());
+        }
+        MediaControlEvent::Next => {
+            let _ = app.emit("player:next", ());
+        }
+        MediaControlEvent::Previous => {
+            let _ = app.emit("player:prev", ());
+        }
+        MediaControlEvent::SetPosition(position) => {
+            let seconds = position.0.as_secs_f64();
+            if seconds.is_finite() && seconds >= 0.0 {
+                let _ = app.emit("player:seek", seconds);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn initialize_media_controls(app: &AppHandle) -> Arc<Mutex<Option<MediaControls>>> {
     let controls = Arc::new(Mutex::new(None));
 
-    if let Some(window) = app.get_webview_window("main") {
-        if let Ok(handle) = window.window_handle() {
-            let raw_handle = handle.as_raw();
+    // Linux：通过 MPRIS 暴露播放状态，Plasma 的「媒体控制器」小组件即可直接控制。
+    #[cfg(target_os = "linux")]
+    {
+        let config = PlatformConfig {
+            dbus_name: "lycia_music",
+            display_name: "Lycia Player",
+            hwnd: None,
+        };
 
-            #[cfg(target_os = "windows")]
-            {
+        match MediaControls::new(config) {
+            Ok(mut mc) => {
+                if mc.attach(media_event_handler(app.clone())).is_ok() {
+                    eprintln!("[mpris] media controls attached");
+                    *controls.lock().unwrap() = Some(mc);
+                }
+            }
+            Err(error) => eprintln!("Error initializing MediaControls: {:?}", error),
+        }
+    }
+
+    // Windows：走 SMTC（系统媒体传输控件）
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(window) = app.get_webview_window("main") {
+            if let Ok(handle) = window.window_handle() {
+                let raw_handle = handle.as_raw();
                 if let RawWindowHandle::Win32(h) = raw_handle {
                     let hwnd = h.hwnd.get() as *mut std::ffi::c_void;
-
                     let config = PlatformConfig {
                         dbus_name: "my_cloud_music",
                         display_name: "My Cloud Music",
@@ -292,28 +335,7 @@ fn initialize_media_controls(app: &AppHandle) -> Arc<Mutex<Option<MediaControls>
 
                     match MediaControls::new(config) {
                         Ok(mut mc) => {
-                            let app_clone = app.clone();
-                            let _ = mc.attach(move |event| match event {
-                                MediaControlEvent::Play => {
-                                    let _ = app_clone.emit("player:play", ());
-                                }
-                                MediaControlEvent::Pause => {
-                                    let _ = app_clone.emit("player:pause", ());
-                                }
-                                MediaControlEvent::Next => {
-                                    let _ = app_clone.emit("player:next", ());
-                                }
-                                MediaControlEvent::Previous => {
-                                    let _ = app_clone.emit("player:prev", ());
-                                }
-                                MediaControlEvent::SetPosition(position) => {
-                                    let seconds = position.0.as_secs_f64();
-                                    if seconds.is_finite() && seconds >= 0.0 {
-                                        let _ = app_clone.emit("player:seek", seconds);
-                                    }
-                                }
-                                _ => {}
-                            });
+                            let _ = mc.attach(media_event_handler(app.clone()));
                             *controls.lock().unwrap() = Some(mc);
                         }
                         Err(error) => println!("Error initializing MediaControls: {:?}", error),

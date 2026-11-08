@@ -20,6 +20,7 @@ tauri-build = { version = "2", features = [] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 ksni = "0.2"
+zbus = "5"
 
 [dependencies]
 tauri = { version = "2", default-features = false, features = ["wry", "compression", "dynamic-acl", "x11", "protocol-asset", "tray-icon"] }

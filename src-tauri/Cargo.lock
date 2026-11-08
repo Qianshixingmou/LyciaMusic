@@ -2801,6 +2801,7 @@ dependencies = [
  "walkdir",
  "wasapi",
  "windows-sys 0.59.0",
+ "zbus",
 ]
 
 [[package]]

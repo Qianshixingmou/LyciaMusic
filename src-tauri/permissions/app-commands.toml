@@ -2,6 +2,7 @@
 identifier = "allow-app-commands"
 description = "Allows Lycia Player application commands used by the frontend."
 commands.allow = [
+  "get_system_color_scheme",
   "scan_music_folder",
   "parse_audio_files",
   "scan_folder_as_playlists",

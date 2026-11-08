@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue';
@@ -39,14 +40,28 @@ export function useAppThemeSync() {
     }
   };
 
+  // Linux：Tauri 的 window.theme() 依赖 GTK 主题推断，在 NixOS/Plasma 下常误判为 dark；
+  // 优先读 XDG 桌面门户的 org.freedesktop.appearance/color-scheme。
+  const readPortalColorScheme = async (): Promise<'dark' | 'light' | null> => {
+    try {
+      const value = await invoke<string | null>('get_system_color_scheme');
+      return value === 'dark' || value === 'light' ? value : null;
+    } catch {
+      return null;
+    }
+  };
+
   const applyTheme = async () => {
     if (theme.value.mode === 'system') {
+      const portalScheme = await readPortalColorScheme();
       try {
         await appWindow.setTheme(null);
-        setResolvedSystemTheme(await appWindow.theme());
+        setResolvedSystemTheme(portalScheme ?? (await appWindow.theme()));
       } catch (error) {
-        setResolvedSystemTheme(null);
-        console.warn('Failed to follow system theme:', error);
+        setResolvedSystemTheme(portalScheme);
+        if (!portalScheme) {
+          console.warn('Failed to follow system theme:', error);
+        }
       }
     }
 

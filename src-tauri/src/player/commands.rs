@@ -43,8 +43,16 @@ fn normalize_cover_for_smtc(cover: &str) -> Option<String> {
         return Some(trimmed.to_string());
     }
 
-    let normalized = trimmed.replace('/', "\\");
-    Some(format!("file://{normalized}"))
+    // Windows 下 file://C:\\path；Linux/macOS 下必须是 file:///abs/path（正斜杠）
+    #[cfg(target_os = "windows")]
+    {
+        let normalized = trimmed.replace('/', "\\");
+        return Some(format!("file://{normalized}"));
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Some(format!("file://{trimmed}"))
+    }
 }
 
 #[tauri::command]

@@ -6,6 +6,7 @@ pub mod error;
 mod foreground_window;
 mod highlights;
 mod music;
+mod system_theme;
 #[cfg(target_os = "linux")]
 mod tray;
 mod player;
@@ -122,6 +123,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| setup_app(app))
         .invoke_handler(tauri::generate_handler![
+            system_theme::get_system_color_scheme,
             scan_music_folder,
             parse_audio_files,
             scan_folder_as_playlists,
