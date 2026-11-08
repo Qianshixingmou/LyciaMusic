@@ -624,7 +624,7 @@ onUnmounted(() => {
       <!-- 桌面歌词锁定 / 解锁 -->
       <button
         @click="toggleDesktopLyricsLock"
-        :class="['transition-colors w-8 h-8 flex items-center justify-center rounded-full', desktopLyricsSettings.isLocked ? 'text-[#EC4141] bg-[#EC4141]/10' : (showPlayerDetail ? 'text-white/60 hover:text-white hover:bg-white/10' : 'text-gray-700 dark:text-white/80 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10')]"
+        :class="['transition-colors w-8 h-8 flex items-center justify-center rounded-full', showPlayerDetail ? 'text-white/60 hover:text-white hover:bg-white/10' : 'text-gray-700 dark:text-white/80 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10']"
         :title="desktopLyricsSettings.isLocked ? '解锁桌面歌词' : '锁定桌面歌词'"
       >
         <!-- 锁定：闭合的锁 -->
