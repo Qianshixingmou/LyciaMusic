@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { emitTo, listen } from '@tauri-apps/api/event';
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
@@ -428,6 +429,13 @@ export function useDesktopLyricsWindowBridge() {
     if (!targetWindow) return;
 
     await targetWindow.setAlwaysOnTop(desktopLyricsSettings.isAlwaysOnTop);
+
+    // Wayland 下 GTK 的 keep-above 无效，需要把状态同步给 KWin 脚本
+    try {
+      await invoke('set_lyrics_keep_above', { enabled: desktopLyricsSettings.isAlwaysOnTop });
+    } catch (error) {
+      console.warn('Failed to sync keep-above to KWin:', error);
+    }
   };
 
   const openDesktopLyricsWindow = async () => {

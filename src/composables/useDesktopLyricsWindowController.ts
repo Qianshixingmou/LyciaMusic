@@ -231,6 +231,12 @@ export function useDesktopLyricsWindowController(options: {
       if (isOver !== isCursorOverLockButton.value) {
         isCursorOverLockButton.value = isOver;
         await applyTransientWindowFlags();
+      } else {
+        // 状态被外部覆盖（例如窗口刚显示时的初始化）时，锁定期间持续校正回穿透
+        const desired = settings.value.isLocked && !isOver;
+        if (desired !== lastAppliedIgnoreCursor) {
+          await applyTransientWindowFlags();
+        }
       }
     } catch (err) {
       console.warn('Failed to check cursor proximity:', err);
@@ -252,6 +258,9 @@ export function useDesktopLyricsWindowController(options: {
     isCursorOverLockButton.value = false;
   }
 
+  // 记录最近一次成功应用的穿透状态，供轮询校正
+  let lastAppliedIgnoreCursor: boolean | null = null;
+
   async function applyTransientWindowFlags() {
     // 修复：窗口尚未显示（GTK 窗口还未 realize）时调用 setIgnoreCursorEvents，
     // tao 会在 window.window().unwrap() 处 panic 导致整个应用崩溃。
@@ -266,6 +275,7 @@ export function useDesktopLyricsWindowController(options: {
     try {
       await appWindow.setIgnoreCursorEvents(shouldIgnoreCursor);
       await appWindow.setFocusable(!shouldIgnoreCursor);
+      lastAppliedIgnoreCursor = shouldIgnoreCursor;
     } catch (err) {
       console.warn('Failed to apply desktop lyrics window flags:', err);
     }
@@ -431,6 +441,24 @@ export function useDesktopLyricsWindowController(options: {
     } catch (error) {
       console.warn('Failed to force transparent background for desktop lyrics window:', error);
     }
+
+    // 窗口创建时是隐藏的，applyTransientWindowFlags 在 isVisible() 为 false 时会直接返回，
+    // 导致“锁定 = 鼠标穿透”在窗口刚出现时不生效。等它真正可见后补一次。
+    let flagProbeAttempts = 0;
+    const flagProbe = setInterval(async () => {
+      flagProbeAttempts += 1;
+      try {
+        if (await appWindow.isVisible()) {
+          clearInterval(flagProbe);
+          await applyTransientWindowFlags();
+        }
+      } catch {
+        clearInterval(flagProbe);
+      }
+      if (flagProbeAttempts > 60) {
+        clearInterval(flagProbe);
+      }
+    }, 120);
 
     unlistenState = await appWindow.listen<DesktopLyricsStatePayload>(DESKTOP_LYRICS_STATE_EVENT, (event) => {
       handlePayload(event.payload);

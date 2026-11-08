@@ -7,6 +7,7 @@ mod foreground_window;
 mod highlights;
 mod music;
 mod system_theme;
+mod kwin;
 #[cfg(target_os = "linux")]
 mod tray;
 mod player;
@@ -130,6 +131,7 @@ pub fn run() {
         .setup(|app| setup_app(app))
         .invoke_handler(tauri::generate_handler![
             system_theme::get_system_color_scheme,
+            kwin::set_lyrics_keep_above,
             scan_music_folder,
             parse_audio_files,
             scan_folder_as_playlists,
