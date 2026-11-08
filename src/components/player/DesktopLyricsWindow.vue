@@ -1,11 +1,35 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { LogicalSize } from '@tauri-apps/api/dpi';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { nextTick, onMounted, ref, watch } from 'vue';
 
 import DesktopLyricsToolbar from './DesktopLyricsToolbar.vue';
 import { useDesktopLyricsDisplay } from '../../composables/useDesktopLyricsDisplay';
 import { useDesktopLyricsWindowController } from '../../composables/useDesktopLyricsWindowController';
 
 const showDragShadow = ref(false);
+const lyricBlockEl = ref<HTMLElement | null>(null);
+const desktopLyricsWindow = getCurrentWindow();
+
+// 让窗口高度贴合歌词内容：单行时窗口不再留一大片空白
+const MIN_LYRICS_WINDOW_HEIGHT = 96;
+const LYRICS_WINDOW_VERTICAL_PADDING = 28;
+
+const fitWindowHeightToLyrics = async () => {
+  try {
+    const element = lyricBlockEl.value;
+    const contentHeight = element ? element.getBoundingClientRect().height : MIN_LYRICS_WINDOW_HEIGHT;
+    const targetHeight = Math.max(
+      MIN_LYRICS_WINDOW_HEIGHT,
+      Math.round(contentHeight + LYRICS_WINDOW_VERTICAL_PADDING),
+    );
+    const currentSize = await desktopLyricsWindow.innerSize();
+    if (Math.abs(currentSize.height - targetHeight) < 6) return;
+    await desktopLyricsWindow.setSize(new LogicalSize(currentSize.width, targetHeight));
+  } catch {
+    // 调整失败不影响歌词显示
+  }
+};
 
 const {
   playbackTime,
@@ -43,6 +67,25 @@ const {
   isPlaying,
   handlePayload,
   handlePlaybackPayload,
+});
+
+watch(
+  [
+    () => activeLyricLine.value,
+    () => visibleLyricLines.value,
+    () => settings.value.playerFontScale,
+    () => settings.value.showDoubleLine,
+    () => settings.value.showTranslation,
+    () => settings.value.showRomaji,
+  ],
+  () => {
+    void nextTick(fitWindowHeightToLyrics);
+  },
+  { deep: true },
+);
+
+onMounted(() => {
+  void nextTick(fitWindowHeightToLyrics);
 });
 </script>
 
@@ -87,6 +130,7 @@ const {
                   <transition name="desktop-block" mode="out-in">
                     <div
                       v-if="activeLyricLine"
+                      ref="lyricBlockEl"
                       :key="blockTransitionKey"
                       class="desktop-lyric-block"
                       :class="{ 'desktop-lyric-block--stroked': settings.textStrokeDepth > 0 }"
