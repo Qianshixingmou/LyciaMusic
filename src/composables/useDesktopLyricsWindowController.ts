@@ -399,11 +399,15 @@ export function useDesktopLyricsWindowController(options: {
     hideToolbar();
   }
 
+  // 用户手动拖动后，不再强行水平居中：拖动即代表想要的位置
+  let userDraggingWindow = false;
+
   async function startWindowDrag(event: MouseEvent) {
     if (settings.value.isLocked || isAutoHidden.value) return;
     if ((event.target as HTMLElement).closest('button, .settings-menu')) return;
 
     revealDragShadow();
+    userDraggingWindow = true;
     await appWindow.startDragging();
   }
 
@@ -468,9 +472,15 @@ export function useDesktopLyricsWindowController(options: {
       }
 
       const size = await appWindow.outerSize();
-      let x = payload.x;
+      const x = payload.x;
 
-      if (settings.value.centerHorizontally) {
+      if (userDraggingWindow) {
+        // 用户拖动结束：记住这个位置，并关掉“水平居中”，否则下次打开会被拉回正中
+        userDraggingWindow = false;
+        if (settings.value.centerHorizontally) {
+          settings.value.centerHorizontally = false;
+        }
+      } else if (settings.value.centerHorizontally) {
         if (centerPositionDebounceTimer) {
           clearTimeout(centerPositionDebounceTimer);
         }

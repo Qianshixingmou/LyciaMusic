@@ -109,6 +109,11 @@ pub fn run() {
         })
         .plugin(
             tauri_plugin_window_state::Builder::default()
+                // 主窗口不恢复上次位置：交给系统/窗口管理器居中（Wayland 下位置本就由合成器决定）
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        & !tauri_plugin_window_state::StateFlags::POSITION,
+                )
                 .with_denylist(&[
                     "desktop-lyrics",
                     "mini-player",
