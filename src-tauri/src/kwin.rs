@@ -90,3 +90,19 @@ pub fn set_lyrics_keep_above(enabled: bool) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// 同步“锁定（鼠标穿透）”到 KWin：GTK 的 input region 在 Wayland 下切换后常失效，
+/// 改由合成器直接关闭窗口的输入接收（acceptsInput = false）。
+#[tauri::command]
+pub fn set_lyrics_ignore_input(enabled: bool) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        write_script_setting("ignoreInput", if enabled { "true" } else { "false" })?;
+        reconfigure_kwin()?;
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = enabled;
+    }
+    Ok(())
+}

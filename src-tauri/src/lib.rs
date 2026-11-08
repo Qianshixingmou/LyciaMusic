@@ -132,6 +132,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             system_theme::get_system_color_scheme,
             kwin::set_lyrics_keep_above,
+            kwin::set_lyrics_ignore_input,
             scan_music_folder,
             parse_audio_files,
             scan_folder_as_playlists,

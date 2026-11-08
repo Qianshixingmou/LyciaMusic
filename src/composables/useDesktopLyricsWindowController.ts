@@ -1,4 +1,5 @@
 import { emitTo } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow, availableMonitors, currentMonitor, cursorPosition } from '@tauri-apps/api/window';
 import { PhysicalPosition } from '@tauri-apps/api/dpi';
 import { computed, onMounted, onUnmounted, ref, watch, type CSSProperties, type Ref } from 'vue';
@@ -206,48 +207,62 @@ export function useDesktopLyricsWindowController(options: {
     }
   }
 
+  // 统一的窗口状态校正：锁定/穿透/工具栏可见性都在这里计算，
+  // 设置面板、窗口上的锁按钮、启动恢复走的是同一套逻辑。
   async function checkLockCursorProximity() {
-    if (!settings.value.isLocked) return;
+    if (!settings.value.isLocked) {
+      if (isCursorOverLockButton.value) isCursorOverLockButton.value = false;
+      if (isToolbarVisible.value && !isAutoHidden.value) isToolbarVisible.value = true;
+      return;
+    }
+
     try {
-      const position = await cursorPosition(); // Global physical coordinates
-      const winPos = await appWindow.outerPosition(); // Window physical coordinates
-      const size = await appWindow.outerSize(); // Window physical size
+      const position = await cursorPosition();
+      const winPos = await appWindow.outerPosition();
+      const size = await appWindow.outerSize();
       const scaleFactor = await appWindow.scaleFactor();
 
-      const W = size.width;
-      const x = position.x - winPos.x;
-      const y = position.y - winPos.y;
+      // Wayland 下 outerPosition() 恒为 (0,0)，基于窗口坐标的“鼠标是否悬停锁图标”不可靠。
+      // 这种情况下不做悬停例外，保持穿透（解锁请到设置里关闭）。
+      const positionUnavailable = winPos.x === 0 && winPos.y === 0;
 
-      const toleranceY = 48 * scaleFactor;
-      const toleranceX = 28 * scaleFactor;
-
-      const centerX = W / 2;
-      const isOver = y >= 0 && y <= toleranceY && x >= centerX - toleranceX && x <= centerX + toleranceX;
-
-      if (settings.value.isLocked) {
-        isToolbarVisible.value = isOver;
+      let isOver = false;
+      if (!positionUnavailable) {
+        const x = position.x - winPos.x;
+        const y = position.y - winPos.y;
+        const toleranceY = 48 * scaleFactor;
+        const toleranceX = 28 * scaleFactor;
+        const centerX = size.width / 2;
+        isOver = y >= 0 && y <= toleranceY && x >= centerX - toleranceX && x <= centerX + toleranceX;
       }
 
-      if (isOver !== isCursorOverLockButton.value) {
-        isCursorOverLockButton.value = isOver;
-        await applyTransientWindowFlags();
-      } else {
-        // 状态被外部覆盖（例如窗口刚显示时的初始化）时，锁定期间持续校正回穿透
-        const desired = settings.value.isLocked && !isOver;
-        if (desired !== lastAppliedIgnoreCursor) {
-          await applyTransientWindowFlags();
-        }
-      }
+      isToolbarVisible.value = isOver;
+      isCursorOverLockButton.value = isOver;
     } catch (err) {
       console.warn('Failed to check cursor proximity:', err);
+    }
+  }
+
+  let reconcileTicks = 0;
+
+  async function reconcileDesktopWindowState() {
+    await checkLockCursorProximity();
+    reconcileTicks += 1;
+    const desiredIgnore = (settings.value.isLocked && !isCursorOverLockButton.value) || isAutoHidden.value;
+
+    // 锁定期间定期重申穿透状态：GTK/Wayland 下首次设置有时不生效，
+    // 只在“状态变化时调用”会导致切换一次后穿透丢失。
+    const shouldReassert = desiredIgnore && reconcileTicks % 5 === 0;
+    if (desiredIgnore !== lastAppliedIgnoreCursor || shouldReassert) {
+      await applyTransientWindowFlags();
     }
   }
 
   function startLockPolling() {
     stopLockPolling();
     lockPollingTimer = setInterval(() => {
-      void checkLockCursorProximity();
-    }, 80);
+      void reconcileDesktopWindowState();
+    }, 100);
   }
 
   function stopLockPolling() {
@@ -255,7 +270,6 @@ export function useDesktopLyricsWindowController(options: {
       clearInterval(lockPollingTimer);
       lockPollingTimer = null;
     }
-    isCursorOverLockButton.value = false;
   }
 
   // 记录最近一次成功应用的穿透状态，供轮询校正
@@ -276,6 +290,8 @@ export function useDesktopLyricsWindowController(options: {
       await appWindow.setIgnoreCursorEvents(shouldIgnoreCursor);
       await appWindow.setFocusable(!shouldIgnoreCursor);
       lastAppliedIgnoreCursor = shouldIgnoreCursor;
+      // Wayland 下 GTK 的 input region 在切换后可能失效，交给 KWin 直接关闭输入接收
+      await invoke('set_lyrics_ignore_input', { enabled: shouldIgnoreCursor });
     } catch (err) {
       console.warn('Failed to apply desktop lyrics window flags:', err);
     }
@@ -323,7 +339,9 @@ export function useDesktopLyricsWindowController(options: {
     isSystemHidden.value = false;
     isHoverDimmed.value = false;
     revealToolbar();
-    revealDragShadow();
+    // 注意：这里不再显示“拖动阴影背景”。
+    // 合成器重新映射/调整窗口时也会触发 Resized 事件，
+    // 会让本来关闭的阴影背景莫名闪现。
 
     resizeVisibilityTimer = setTimeout(() => {
       isResizeInteractionActive.value = false;
@@ -418,6 +436,14 @@ export function useDesktopLyricsWindowController(options: {
 
     revealDragShadow();
     userDraggingWindow = true;
+    // 拖动结束（松手）立刻恢复透明背景，不依赖合成器事件
+    window.addEventListener(
+      'pointerup',
+      () => {
+        showDragShadow.value = false;
+      },
+      { once: true },
+    );
     await appWindow.startDragging();
   }
 
@@ -434,6 +460,7 @@ export function useDesktopLyricsWindowController(options: {
   onMounted(async () => {
     startPlaybackClock();
     startAutoHideLoop();
+    startLockPolling();
     void loadSystemLyricsFonts();
 
     try {
@@ -469,10 +496,8 @@ export function useDesktopLyricsWindowController(options: {
     });
 
     unlistenRevealSurface = await appWindow.listen(DESKTOP_LYRICS_REVEAL_SURFACE_EVENT, () => {
-      revealDragShadow();
+      // 仅用于刷新窗口表面，不显示拖动阴影背景
     });
-
-    revealDragShadow();
 
     unlistenCloseRequested = await appWindow.onCloseRequested(async (event) => {
       event.preventDefault();
@@ -481,7 +506,11 @@ export function useDesktopLyricsWindowController(options: {
     });
 
     unlistenMoved = await appWindow.onMoved(async ({ payload }) => {
-      revealDragShadow();
+      // 只有用户手动拖动时才显示阴影；KWin 因“显示桌面/切换工作区”重新摆放窗口
+      // 也会触发 Moved，不应让关闭的阴影背景冒出来
+      if (userDraggingWindow) {
+        revealDragShadow();
+      }
 
       if (isApplyingCenterPosition) {
         isApplyingCenterPosition = false;
@@ -613,15 +642,10 @@ export function useDesktopLyricsWindowController(options: {
         clearHoverDimTimer();
         isHoverDimmed.value = false;
         isToolbarVisible.value = false;
-        if (!isAutoHidden.value) {
-          startLockPolling();
-        } else {
-          stopLockPolling();
-        }
       } else {
-        stopLockPolling();
+        isToolbarVisible.value = false;
       }
-      void applyTransientWindowFlags();
+      void reconcileDesktopWindowState();
     },
     { immediate: true },
   );
